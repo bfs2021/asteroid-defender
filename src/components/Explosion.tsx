@@ -2,12 +2,7 @@ import { useRef, useEffect, memo, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { AsteroidType } from "../ecs/world";
-
-const EXPLOSION_COLORS: Record<AsteroidType, string> = {
-  swarmer: "#d4a843",
-  tank: "#555555",
-  splitter: "#a855f7",
-};
+import { ASTEROID_CONFIGS } from "./asteroid/config";
 
 const EMISSIVE_COLOR = new THREE.Color(10, 2, 0);
 const EXPLOSION_FRAGMENT_IDS = Array.from({ length: 8 }, (_, index) => index);
@@ -182,7 +177,7 @@ interface ExplosionProps {
 }
 
 function Explosion({ id, position, type, active, onComplete }: ExplosionProps) {
-  const color = EXPLOSION_COLORS[type] || "#ff6600";
+  const color = ASTEROID_CONFIGS[type]?.color ?? "#ff6600";
 
   return (
     <ActiveExplosionEffect
