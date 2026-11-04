@@ -9,7 +9,7 @@
 
 ## Before pushing
 
-Run `vp check`, `vp test` and `vp build`. The deploy workflow runs the same three.
+Run `vp check`, `vp test` and `vp build`. `.github/workflows/ci.yml` runs the same three on every PR and on pushes to `main`, as the `check` job. CI doesn't start the game, so a green run doesn't replace [checking in the browser](testing.md).
 
 - `vp check` must report 0 errors. Don't add to the existing warnings.
 - If it reports formatting problems, run `vp fmt <file>`.
