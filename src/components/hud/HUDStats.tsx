@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import useGameStore from "../../store/gameStore";
+import { healthReadout } from "./healthReadout";
 
 const STATE_BADGE: Record<string, { label: string; bg: string; border: string; color: string }> = {
   menu: {
@@ -28,14 +29,6 @@ const STATE_BADGE: Record<string, { label: string; bg: string; border: string; c
     color: "#fee2e2",
   },
 };
-
-/** The "Base Integrity" readout: the percentage of maxHealth and whether it is critical.
- * One source of truth for both the number and the bar: with a non-100 maxHealth the raw
- * health and the ratio can disagree, and the raw value is not even a percentage. */
-export function healthReadout(health: number, maxHealth: number) {
-  const percent = maxHealth > 0 ? (health / maxHealth) * 100 : 0;
-  return { percent, label: `${Math.round(percent)}%`, isCritical: percent <= 30 };
-}
 
 /** Top-left HUD panel: title badge, health bar, destroyed/active stats. */
 function HUDStats() {

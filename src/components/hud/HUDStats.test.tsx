@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { healthReadout } from "./HUDStats";
+import { healthReadout } from "./healthReadout";
 
 // The readout is a pure mapping, so it is tested directly: the repo's component renderer
 // (ReactThreeTestRenderer) mounts THREE elements only and cannot render the HUD's span/div.
