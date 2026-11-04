@@ -109,10 +109,14 @@ export const usePoolStore = create<PoolState>((set, get) => ({
 
         for (let s = 0; s < spawns.length; s++) {
           const idx = state.asteroidFreeList.pop()!;
+          // Copy-on-write: subscribers compare slot references (#156).
           const slot = newAsteroids[idx];
-          slot.active = true;
-          slot.pos = spawns[s].pos;
-          slot.type = spawns[s].type;
+          newAsteroids[idx] = {
+            ...slot,
+            active: true,
+            pos: spawns[s].pos,
+            type: spawns[s].type,
+          };
           state.asteroidIdToIndex.set(slot.id, idx);
         }
 
@@ -166,9 +170,12 @@ export const usePoolStore = create<PoolState>((set, get) => ({
       for (let s = 0; s < toActivate; s++) {
         const idx = state.asteroidFreeList.pop()!;
         const slot = newAsteroids[idx];
-        slot.active = true;
-        slot.pos = spawns[s].pos;
-        slot.type = spawns[s].type;
+        newAsteroids[idx] = {
+          ...slot,
+          active: true,
+          pos: spawns[s].pos,
+          type: spawns[s].type,
+        };
         state.asteroidIdToIndex.set(slot.id, idx);
       }
 
@@ -196,9 +203,7 @@ export const usePoolStore = create<PoolState>((set, get) => ({
 
     set((state) => {
       const newAsteroids = [...state.asteroids];
-      const slot = newAsteroids[idx];
-      slot.active = false;
-      slot.pos = getStoragePosition();
+      newAsteroids[idx] = { ...newAsteroids[idx], active: false, pos: getStoragePosition() };
       state.asteroidFreeList.push(idx);
       state.asteroidIdToIndex.delete(id);
       return {
@@ -217,9 +222,7 @@ export const usePoolStore = create<PoolState>((set, get) => ({
         const newExplosions = [...state.explosions];
         const idx = state.explosionFreeList.pop()!;
         const slot = newExplosions[idx];
-        slot.active = true;
-        slot.pos = pos;
-        slot.type = type;
+        newExplosions[idx] = { ...slot, active: true, pos, type };
         state.explosionIdToIndex.set(slot.id, idx);
 
         return {
@@ -246,9 +249,7 @@ export const usePoolStore = create<PoolState>((set, get) => ({
 
       const idx = state.explosionFreeList.pop()!;
       const slot = newExplosions[idx];
-      slot.active = true;
-      slot.pos = pos;
-      slot.type = type;
+      newExplosions[idx] = { ...slot, active: true, pos, type };
       state.explosionIdToIndex.set(slot.id, idx);
 
       return {
@@ -264,9 +265,7 @@ export const usePoolStore = create<PoolState>((set, get) => ({
 
     set((state) => {
       const newExplosions = [...state.explosions];
-      const slot = newExplosions[idx];
-      slot.active = false;
-      slot.pos = getStoragePosition();
+      newExplosions[idx] = { ...newExplosions[idx], active: false, pos: getStoragePosition() };
       state.explosionFreeList.push(idx);
       state.explosionIdToIndex.delete(id);
       return {
