@@ -3,7 +3,7 @@
 ## Automated tests
 
 - Tests sit next to the code as `*.test.ts`, and benchmarks as `*.bench.ts`.
-- There is no DOM test environment and no component rendering. Tests cover stores, helpers and plugins only.
+- There is no DOM test environment. `@react-three/test-renderer` can still mount an R3F scene without a browser (see `src/components/gameScene/AsteroidLayer.test.tsx`); the rest of the suite covers stores, helpers and plugins.
 - Test behaviour at the seam that can break. For a bug fix, confirm the new test fails without the fix.
 
 ## Why tests aren't enough
