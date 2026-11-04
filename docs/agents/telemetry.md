@@ -18,7 +18,6 @@ Design background is in `docs/ARCHITECTURE/004-development-telemetry.md`.
 
 ## Pitfalls
 
-- **Never instrument a function that is read during render.** Each traced call records an event, which invalidates the telemetry snapshot. If the overlay's render calls that function, it re-renders forever and React throws "Maximum update depth exceeded" (#185). Add such modules to `EXCLUDED_PATTERNS`, as was done for `src/ecs/spawnStats.ts`. The plugin's test only covers `spawnStats`, so check any new function the overlay reads.
-- **The plugin exists twice (#160).** `tools/telemetry/viteTelemetryPlugin.js` is the one `vite.config.js` loads. Keep the `.ts` copy in sync until #160 removes one.
+- **Never instrument a function that is read during render.** Each traced call records an event, which invalidates the telemetry snapshot. If the overlay's render calls that function, it re-renders forever and React throws "Maximum update depth exceeded" (#185). Add such modules to `EXCLUDED_PATTERNS` in `tools/telemetry/viteTelemetryPlugin.ts`, as was done for `src/ecs/spawnStats.ts`. The plugin's test only covers `spawnStats`, so check any new function the overlay reads.
 - **Tracing distorts timings.** Use it to see what happens and in what order. Use a production build for performance numbers.
 - **The buffer fills before play starts.** Load-time work, most likely the nebula texture generation, produces millions of events and overflows the bounded buffer. Call `clear()` when a run starts if you want a usable trace of it.

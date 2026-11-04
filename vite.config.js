@@ -1,6 +1,6 @@
 import { defineConfig } from "vite-plus";
 import react from "@vitejs/plugin-react";
-import { devTelemetryVitePlugin } from "./tools/telemetry/viteTelemetryPlugin.js";
+import { devTelemetryVitePlugin } from "./tools/telemetry/viteTelemetryPlugin.ts";
 
 // https://vite.dev/config/
 export default defineConfig({
