@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { STREAK_FRAG, STREAK_VERT } from "./shaders";
@@ -46,7 +46,8 @@ export default function ShootingStars() {
   );
 
   const timerRef = useRef(0);
-  const nextSpawnRef = useRef(3 + Math.random() * 5);
+  const [firstSpawn] = useState(() => 3 + Math.random() * 5);
+  const nextSpawnRef = useRef(firstSpawn);
 
   const uniformsList = useMemo(
     () => Array.from({ length: MAX_STREAKS }, () => ({ uOpacity: { value: 0 } })),

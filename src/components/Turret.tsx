@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Edges, Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -35,8 +35,9 @@ export default function Turret({ id, position, rotation }: TurretProps) {
     () => new THREE.Euler(rotationX, rotationY, rotationZ),
     [rotationX, rotationY, rotationZ],
   );
-  const idleOffsetRef = useRef(Math.random() * Math.PI * 2);
-  const nextRecalibrationRef = useRef(6 + Math.random() * 5);
+  const [idleOffset] = useState(() => Math.random() * Math.PI * 2);
+  const [firstRecalibration] = useState(() => 6 + Math.random() * 5);
+  const nextRecalibrationRef = useRef(firstRecalibration);
   const recalibrationStartRef = useRef<number | null>(null);
   const pulseRef = useRef(0);
   const impactRef = useRef<THREE.Mesh>(null);
@@ -121,7 +122,7 @@ export default function Turret({ id, position, rotation }: TurretProps) {
         turretGroup.current,
         baseRotation,
         state.clock.elapsedTime,
-        idleOffsetRef.current,
+        idleOffset,
       );
 
       if (
