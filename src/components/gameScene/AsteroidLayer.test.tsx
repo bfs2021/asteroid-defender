@@ -7,7 +7,7 @@ import { ECS, asteroidQuery } from "../../ecs/world";
 import { usePoolStore } from "../../store/poolStore";
 import useGameStore from "../../store/gameStore";
 
-// React only batches updates when this flag is set; vite-plus does not set it.
+// Lets act() flush updates and warn about updates outside it; vite-plus does not set it.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Renderer = Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>;
@@ -162,7 +162,6 @@ describe("AsteroidLayer pool smoke test", () => {
 
     const dyingEntity = asteroidQuery.entities.find((entity) => entity.id === dyingId)!;
     dyingEntity.health = 0;
-    const slotsBefore = usePoolStore.getState().asteroids;
 
     // A spawn and a death in the same React batch: the active count ends where
     // it started, so only slot identity can make the layer repaint. This is the
@@ -172,15 +171,10 @@ describe("AsteroidLayer pool smoke test", () => {
       await renderer.advanceFrames(1, 1 / 60);
     });
 
-    const state = usePoolStore.getState();
     const spawnedId = activeSlotIds().find((id) => id !== survivorId)!;
-    const dyingIndex = slotsBefore.findIndex((slot) => slot.id === dyingId);
-    const spawnedIndex = state.asteroids.findIndex((slot) => slot.id === spawnedId);
 
-    // #156: slots must be replaced, not mutated, or useShallow subscribers miss it.
-    expect(state.asteroids[dyingIndex]).not.toBe(slotsBefore[dyingIndex]);
-    expect(state.asteroids[spawnedIndex]).not.toBe(slotsBefore[spawnedIndex]);
-
+    // Slot identity (copy-on-write) is covered by src/store/poolStore.test.ts;
+    // this test only asserts what a player could see.
     expect(liveIds()).toEqual([spawnedId, survivorId].sort());
     expect(visibleAsteroids(renderer)).toHaveLength(2);
     expect(useGameStore.getState().asteroidsDestroyed).toBe(1);
@@ -188,5 +182,35 @@ describe("AsteroidLayer pool smoke test", () => {
     await advance(renderer, 5);
     expect(liveIds()).toEqual([spawnedId, survivorId].sort());
     expect(useGameStore.getState().asteroidsDestroyed).toBe(1);
+  }, 20000);
+
+  it("keeps a dead slot dead while frames keep running (#156)", async () => {
+    const renderer = await mountLayer();
+
+    activate([10, 0, 0]);
+    await advance(renderer, 2);
+    expect(liveIds()).toHaveLength(1);
+
+    const dying = asteroidQuery.entities[0];
+    dying.health = 0;
+    // Spawn and the kill are handled in the same task, so the active count ends
+    // where it started and only the slot replacement can make the layer repaint.
+    // Updates run outside act(), the way the render loop runs them; the flag
+    // only silences act()'s warning for those updates.
+    const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const actEnvironment = env.IS_REACT_ACT_ENVIRONMENT;
+    env.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      usePoolStore.getState().activateAsteroids([{ pos: [12, 0, 0], type: "swarmer" }]);
+      for (let frame = 0; frame < 3; frame++) await renderer.advanceFrames(1, 1 / 60);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      for (let frame = 0; frame < 3; frame++) await renderer.advanceFrames(1, 1 / 60);
+    } finally {
+      env.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
+    }
+
+    expect(useGameStore.getState().asteroidsDestroyed).toBe(1);
+    expect(liveIds()).toEqual(activeSlotIds());
+    expect(visibleAsteroids(renderer)).toHaveLength(1);
   }, 20000);
 });
