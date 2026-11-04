@@ -1,6 +1,7 @@
 # What to do next
 
-Reviewed: 2026-11-04 @ `5eafb92` (same commit as tag `v1.0.20`), updated after #184 merged (`89db141`).
+Reviewed: 2026-11-04 @ `5eafb92` (same commit as tag `v1.0.20`), updated after #184, #187, #188 and #191 merged
+(`4ffb7c9`).
 Working note, not documentation: delete it once the items below are done or filed.
 
 ## The short version
@@ -13,8 +14,8 @@ runs the game loop. #150-#183 came from a code review; the bugs below came from 
 
 Suggested order:
 
-1. Fix the dev crash (#185).
-2. Add CI (#165).
+1. Make the CI `check` job required on `main`. It runs on PRs now, but a red run doesn't block a merge yet.
+2. Add the render smoke test (#167, step 2).
 3. Check balance now that the game can be lost, then tag a release.
 4. Restore the shield impact effect (#186), then do the cheap cleanups.
 5. Build waves and audio, which players will actually notice.
@@ -48,10 +49,13 @@ The render smoke test in #167 should pin it.
 Limits of this evidence: headless Chrome with software rendering, few runs, and only local builds, not the
 deployed site.
 
-### 2. `vp dev` crashes on load - #185
+### 2. `vp dev` crashed on load - fixed in #187
 
-The page shows "Maximum update depth exceeded" from `DevTelemetryOverlay` and no canvas.
-**Workaround: add `?telemetry=off` to the URL.** Do this before #160, whose verification needs a dev server.
+The page showed "Maximum update depth exceeded" from `DevTelemetryOverlay` and no canvas. #187 excluded
+`spawnStats` from telemetry instrumentation. Its test imports both plugin copies, so #160 will need to update it.
+
+Not filed yet: load-time work, most likely `createNebulaTexture.ts`, records about 14.6M telemetry events and
+overflows the buffer before play starts.
 
 ### 3. The shield impact effect never fires - #186
 
@@ -70,12 +74,11 @@ function as "no behaviour change". Do #186 first.
 
 ### Now
 
-| Item                                | Why                                                                                 |
-| ----------------------------------- | ----------------------------------------------------------------------------------- |
-| #185 dev crash                      | Blocks local running and several other issues' verification                         |
-| #165 CI                             | Cheap. Also turn on required status checks in repo settings, or CI is only advisory |
-| Render smoke test from #167, step 2 | Raise its priority: this is the test class that would have caught the jam           |
-| Balance check, then tag a release   | Players still have the jam                                                          |
+| Item                                | Why                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| Required `check` on `main`          | CI (#188) is only advisory until this is on                               |
+| Render smoke test from #167, step 2 | Raise its priority: this is the test class that would have caught the jam |
+| Balance check, then tag a release   | Players still have the jam                                                |
 
 ### Next: small, safe, and mostly independent
 
