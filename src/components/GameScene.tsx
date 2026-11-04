@@ -60,7 +60,6 @@ export default function GameScene({
   // It does NOT render asteroids — that's AsteroidLayer's job.
   useAsteroidManager({
     poolSize: ASTEROID_POOL_SIZE,
-    onShieldImpact: addShieldImpact,
   });
 
   // Reset pool state when session changes
@@ -86,7 +85,7 @@ export default function GameScene({
           <Turret key={config.id} {...config} />
         ))}
 
-        <AsteroidLayer effectsQuality={asteroidEffectsQuality} />
+        <AsteroidLayer effectsQuality={asteroidEffectsQuality} onShieldImpact={addShieldImpact} />
         <ExplosionLayer />
       </group>
     </>

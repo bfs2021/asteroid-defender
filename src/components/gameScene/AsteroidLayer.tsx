@@ -5,13 +5,18 @@ import { usePoolStore } from "../../store/poolStore";
 import type { AsteroidType } from "../../ecs/world";
 import { enqueueAsteroidFragment } from "../../ecs/asteroidSpawnQueue";
 import useGameStore from "../../store/gameStore";
+import { markTelemetry } from "../../telemetry/runtime";
 import type { EffectsQuality } from "../../utils/visualQuality";
 
 interface AsteroidLayerProps {
   effectsQuality: EffectsQuality;
+  onShieldImpact?: (pos: [number, number, number]) => void;
 }
 
-const AsteroidLayer = memo(function AsteroidLayer({ effectsQuality }: AsteroidLayerProps) {
+const AsteroidLayer = memo(function AsteroidLayer({
+  effectsQuality,
+  onShieldImpact,
+}: AsteroidLayerProps) {
   const asteroids = usePoolStore(useShallow((s) => s.asteroids));
   const activeAsteroidCount = usePoolStore((s) => s.activeAsteroidCount);
 
@@ -23,6 +28,8 @@ const AsteroidLayer = memo(function AsteroidLayer({ effectsQuality }: AsteroidLa
       type: AsteroidType,
       damage: number,
     ) => {
+      markTelemetry("asteroids:destroy", { type, baseHit: isHit });
+
       const store = usePoolStore.getState();
       store.deactivateAsteroid(id);
 
@@ -30,6 +37,7 @@ const AsteroidLayer = memo(function AsteroidLayer({ effectsQuality }: AsteroidLa
         useGameStore.getState().incrementDestroyed();
       } else {
         useGameStore.getState().takeDamage(damage);
+        onShieldImpact?.(pos);
       }
 
       store.triggerExplosion(pos, type);
@@ -41,7 +49,7 @@ const AsteroidLayer = memo(function AsteroidLayer({ effectsQuality }: AsteroidLa
         enqueueAsteroidFragment(pos);
       }
     },
-    [],
+    [onShieldImpact],
   );
 
   return (

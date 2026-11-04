@@ -45,10 +45,10 @@ async function advance(renderer: Renderer, frames: number) {
   });
 }
 
-async function mountLayer() {
+async function mountLayer(onShieldImpact?: (pos: [number, number, number]) => void) {
   const renderer = await ReactThreeTestRenderer.create(
     <Physics>
-      <AsteroidLayer effectsQuality="off" />
+      <AsteroidLayer effectsQuality="off" onShieldImpact={onShieldImpact} />
     </Physics>,
   );
   await settle(renderer);
@@ -212,5 +212,28 @@ describe("AsteroidLayer pool smoke test", () => {
     expect(useGameStore.getState().asteroidsDestroyed).toBe(1);
     expect(liveIds()).toEqual(activeSlotIds());
     expect(visibleAsteroids(renderer)).toHaveLength(1);
+  }, 20000);
+
+  it("a base hit fires one shield impact and a turret kill fires none (#186)", async () => {
+    const impacts: Array<[number, number, number]> = [];
+    const renderer = await mountLayer((pos) => impacts.push(pos));
+
+    activate([10, 0, 0]);
+    await advance(renderer, 2);
+    asteroidQuery.entities[0].health = 0;
+    await advance(renderer, 1);
+    expect(impacts).toHaveLength(0);
+
+    activate([20, 0, 0]);
+    await advance(renderer, 2);
+    const entity = asteroidQuery.entities[0];
+    entity.isBaseHit = true;
+    entity.health = 0;
+    // One frame per act(): the game renders between frames, so a dead slot stops
+    // at once. Several frames in one act() would all see it alive.
+    for (let frame = 0; frame < 3; frame++) await advance(renderer, 1);
+
+    expect(impacts).toHaveLength(1);
+    expect(useGameStore.getState().asteroidsDestroyed).toBe(1);
   }, 20000);
 });

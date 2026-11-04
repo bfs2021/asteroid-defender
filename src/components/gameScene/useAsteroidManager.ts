@@ -15,7 +15,6 @@ import { usePoolStore } from "../../store/poolStore";
 
 export interface AsteroidManagerOptions {
   poolSize: number;
-  onShieldImpact?: (pos: [number, number, number]) => void;
 }
 
 // Keep for backwards compatibility — activeCount now derived from store
@@ -31,7 +30,7 @@ export interface AsteroidPoolState {
  * Pool state lives in poolStore; this hook dispatches operations to the store
  * and syncs active count to gameStore.
  */
-export function useAsteroidManager({ poolSize, onShieldImpact }: AsteroidManagerOptions) {
+export function useAsteroidManager({ poolSize }: AsteroidManagerOptions) {
   // Track active count locally and sync to gameStore
   const [activeCount, setActiveAsteroidsCount] = useState(0);
 
@@ -89,21 +88,14 @@ export function useAsteroidManager({ poolSize, onShieldImpact }: AsteroidManager
   });
 
   const handleDestroy = useCallback(
-    (id: string, pos: [number, number, number], isBaseHit = false, type: AsteroidType) => {
-      markTelemetry("asteroids:destroy", {
-        type,
-        baseHit: isBaseHit,
-      });
-
+    (id: string, _pos: [number, number, number], isBaseHit = false, _type: AsteroidType) => {
       if (!isBaseHit) {
         incrementDestroyed();
-      } else if (onShieldImpact) {
-        onShieldImpact(pos);
       }
 
       usePoolStore.getState().deactivateAsteroid(id);
     },
-    [incrementDestroyed, onShieldImpact],
+    [incrementDestroyed],
   );
 
   // Expose asteroids from store for rendering
