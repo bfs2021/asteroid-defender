@@ -1,30 +1,29 @@
 # What to do next
 
-Reviewed: 2026-11-04 @ `5eafb92` (same commit as tag `v1.0.20`). Covers 38 open issues and 1 open PR.
+Reviewed: 2026-11-04 @ `5eafb92` (same commit as tag `v1.0.20`), updated after #184 merged (`89db141`).
 Working note, not documentation: delete it once the items below are done or filed.
 
 ## The short version
 
-**Stop working through the review backlog in order: the game is broken, and no open issue says how badly.**
+**The worst bug is fixed on `main` but not released.** `v1.0.20` still has the jam described below, and the
+deploy only runs on `v*` tags.
 
-A few seconds into a run, the game jams permanently. The score climbs by 60 per second, almost nothing
-new reaches the field, and the base takes no damage. Separately, `vp dev` crashes on load. All checks are
-green (`vp check` 0 errors, 129 tests pass) because nothing runs the game loop. #150-#183 came from a code
-review; I found these by running the game.
+All checks stayed green (`vp check` 0 errors, every test passing) while the game was jammed, because nothing
+runs the game loop. #150-#183 came from a code review; the bugs below came from running the game.
 
 Suggested order:
 
-1. Fix the jam (#156, widened).
-2. Fix the dev crash (new issue).
-3. Add CI (#165).
-4. Restore the shield impact effect (new issue), then do the cheap cleanups.
-5. Re-check game balance, then build waves and audio, which players will actually notice.
+1. Fix the dev crash (#185).
+2. Add CI (#165).
+3. Check balance now that the game can be lost, then tag a release.
+4. Restore the shield impact effect (#186), then do the cheap cleanups.
+5. Build waves and audio, which players will actually notice.
 
 ## Bugs found by running it
 
-### 1. The game jams within seconds (production build) - highest priority
+### 1. The game jammed within seconds - fixed in #184, not released
 
-Production build, started with the real "Start Defense" button, reading only the HUD:
+Before the fix, on a production build started with the real "Start Defense" button, the HUD showed:
 
 | Time | Destroyed | Active Swarm | Base Integrity |
 | ---- | --------- | ------------ | -------------- |
@@ -32,72 +31,32 @@ Production build, started with the real "Start Defense" button, reading only the
 | 60s  | 3138      | 1            | 100%           |
 | 150s | 8538      | 1            | 100%           |
 
-The dev build (`?telemetry=off`) does the same. There, the probe showed:
+Pool slots were mutated in place, so `useShallow` subscribers missed the change. A dead asteroid kept its
+`active` prop and called `onDestroy` every frame, and explosion slots were never released. #184 made all six
+slot changes copy-on-write, in both pools, with identity tests.
 
-- a dead tank still in the ECS at **-26,726 health**
-- `destroyed` rising by exactly 1 per frame
-- the explosion pool stuck at 60/60 active, with none released
+After the fix (production build, 90s): Destroyed reached 126, about 1.4/s, with Active Swarm moving between 0
+and 2. Under a heavy injected swarm the base reached game over within 10s, no dead asteroid outlived one frame,
+and a restart reset cleanly.
 
-Mechanism:
+**Still only protected by frame order.** A slot that dies and is reused in the same React batch with the same
+type keeps `active`, `id` and `type`, so the effect at `Asteroid.tsx:86` wouldn't re-run. This didn't happen
+(0 of 169 reuses in a 121s measurement) because spawns currently run before deaths each frame. I think that
+order comes from `<group key={sessionId}>` remounting the children, so a refactor could change it unnoticed.
+The render smoke test in #167 should pin it.
 
-1. An asteroid dies and another spawns in the same frame, so `activeAsteroidCount` doesn't change.
-2. Slots are mutated in place (`poolStore.ts:112-115`, `:199-201`), so `useShallow` in `AsteroidLayer.tsx:15`
-   sees no change either, and the layer doesn't re-render.
-3. The dead slot keeps its `active` prop, so `Asteroid.tsx:177-181` calls `onDestroy` every frame. Each call
-   adds a kill and tries to start another explosion (`AsteroidLayer.tsx:18-45`).
-4. New spawns kept activating (15 in 15s) but the count never moved. My reading, not directly observed: the
-   LIFO free list hands the zombie's own slot to each new spawn, and the zombie kills it in the same frame.
+Limits of this evidence: headless Chrome with software rendering, few runs, and only local builds, not the
+deployed site.
 
-**#156 understates this.** It describes a dead asteroid lingering "until the count next moves", but the
-count may never move again. It also covers only asteroids. **Explosions have the same defect with nothing
-masking it:** `ExplosionLayer.tsx:7` subscribes only through `useShallow`, so a triggered explosion gets no
-re-render from the store, and its slot is never released.
+### 2. `vp dev` crashes on load - #185
 
-**The #156 fix works.** I applied copy-on-write to all 6 mutation sites in `poolStore.ts`, on a throwaway
-copy (not committed), and ran it for 100s:
+The page shows "Maximum update depth exceeded" from `DevTelemetryOverlay` and no canvas.
+**Workaround: add `?telemetry=off` to the URL.** Do this before #160, whose verification needs a dev server.
 
-|                       | Unpatched                            | Copy-on-write              |
-| --------------------- | ------------------------------------ | -------------------------- |
-| Destroyed vs. spawned | 4504 kills at 90s, about 1 per frame | 145 kills, 147 activations |
-| Stuck dead entities   | yes                                  | none                       |
-| Explosions active     | stuck at 60/60                       | rise and fall, peak 5      |
-| Existing store tests  | pass                                 | pass (30/30)               |
+### 3. The shield impact effect never fires - #186
 
-Do in the same PR:
-
-- Add the identity test #156 proposes, for **both** pools.
-- Raise #156's priority and extend its scope to explosions.
-- Test one remaining case: a slot that dies and is reused in the same batch with the same type keeps
-  `active`, `id` and `type`, so the effect at `Asteroid.tsx:86` won't re-run. I expect this to swallow one
-  spawn and then recover. I didn't see it in the 100s run, and I didn't test it directly.
-
-Limits of this evidence: headless Chrome at 60fps, 2 unpatched runs (both jammed within 20s) and 1 patched
-run. The bug depends on timing, so the moment it starts will vary. I didn't check the deployed site, only a
-local build of the commit that `v1.0.20` points at.
-
-### 2. `vp dev` crashes on load - needs a new issue
-
-With default settings, the page shows "Maximum update depth exceeded" from `DevTelemetryOverlay` and no
-canvas. No probe is needed to trigger it. **Workaround: add `?telemetry=off` to the URL** (verified).
-
-Probable cause (the workaround fits it, and the served module is instrumented, but I didn't test a fix):
-the telemetry plugin instruments `getSpawnStatsSnapshot` because `viteTelemetryPlugin.js:11-17` only excludes
-`src/telemetry/`. `DevTelemetryOverlay.tsx:85-89` reads that function during render, which records an event,
-which invalidates the telemetry snapshot read at `:80-84`, which forces another render. The spawn stats reads
-arrived in `48ad1e5` (#149).
-
-Likely fix: add `spawnStats` to `EXCLUDED_PATTERNS`. Do this before #160, whose verification steps need a
-working dev server.
-
-### 3. The shield impact effect never fires - needs a new issue
-
-Found by tracing the code, not by watching it. `addShieldImpact` (`GameScene.tsx:63`) is only called from
-`handleDestroy` in `useAsteroidManager.ts:91-110`, and nothing calls that function. The live path is the
-`handleDestroy` in `AsteroidLayer.tsx:18`, which never calls it. The `asteroids:destroy` telemetry event is
-in the same dead function, so it never fires either.
-
-**#157 as written would hide this.** It calls deleting that code "no behaviour change". Move the shield call
-and the telemetry mark into the live handler first, then delete.
+Found by tracing the code, not by watching it. Its only caller is a dead function, and #157 would delete that
+function as "no behaviour change". Do #186 first.
 
 ## Quick housekeeping (about 10 minutes)
 
@@ -113,26 +72,25 @@ and the telemetry mark into the live handler first, then delete.
 
 | Item                                | Why                                                                                 |
 | ----------------------------------- | ----------------------------------------------------------------------------------- |
-| #156 + explosions                   | The game doesn't work without it                                                    |
-| Dev crash (new)                     | Blocks local running and several other issues' verification                         |
+| #185 dev crash                      | Blocks local running and several other issues' verification                         |
 | #165 CI                             | Cheap. Also turn on required status checks in repo settings, or CI is only advisory |
 | Render smoke test from #167, step 2 | Raise its priority: this is the test class that would have caught the jam           |
+| Balance check, then tag a release   | Players still have the jam                                                          |
 
 ### Next: small, safe, and mostly independent
 
-| Item                           | Note                                                                                                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shield impact (new), then #157 | In that order. #157 also removes the `usePoolStore` subscription and local state in `useAsteroidManager`, which re-render `GameScene`, so it's a perf win too |
-| #162, then #158                | #158's one-line fix goes in the effect #162 makes the single owner                                                                                            |
-| #159, #169, #160               | Mechanical. #159 clears 3 of the 5 lint warnings                                                                                                              |
-| #172, #173                     | **#173 only after #156.** If the layer stops subscribing to the raw count before slots are copy-on-write, activations stop rendering altogether               |
-| #166                           | Docs truth; easier once the above has landed                                                                                                                  |
+| Item             | Note                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #186, then #157  | In that order. #157 also removes the `usePoolStore` subscription and local state in `useAsteroidManager`, which re-render `GameScene`, so it's a perf win too |
+| #162, then #158  | #158's one-line fix goes in the effect #162 makes the single owner                                                                                            |
+| #159, #169, #160 | Mechanical. #159 clears 3 of the 5 lint warnings                                                                                                              |
+| #172, #173       | Unblocked by #184: slots are now copy-on-write, so the layer can stop subscribing to the raw count                                                            |
+| #166             | Docs truth; easier once the above has landed                                                                                                                  |
 
 ### Then: player-facing
 
-1. **Re-check balance first.** Once the jam was fixed, the base stayed at 100% for all 100s and the samples
-   never showed more than 3 asteroids active. That's one short run, but nobody can have judged the current
-   tuning through the jam, so don't trust it.
+1. **Re-check balance first.** Two 90-105s runs after the fix differed: one ended at 100% base, the other at
+   90%. That's too little to judge, and nobody can have assessed the tuning through the jam.
 2. **#126 waves**, which gives that tuning a structure. #168 and #181 are useful groundwork.
 3. **#125 audio**, which has no dependencies and is the biggest cheap feel upgrade. The kill and base-hit
    events exist; a continuous laser needs a loop, not one-shots.
@@ -162,8 +120,8 @@ Worth fixing in the issue text before anyone implements from it.
   look like a bug. Simpler: set the penalty to `TURRET_RANGE_SQ`, so a free target in range always wins, and
   stacking happens only when nothing else is available. This changes balance, so playtest it.
 - **#171:** the proposed size of 12 comes from `MAX_ACTIVATIONS_PER_FRAME`, which limits spawns, not deaths. A full
-  pool silently drops explosions (`poolStore.ts:235`). The peak of 5 above came from a low-pressure run, so measure
-  under load before picking a number.
+  pool silently drops explosions (`poolStore.ts:235`). Explosions peaked at 5 under normal play but 11 under a heavy injected swarm,
+  so 12 leaves almost no margin. Measure under real load before picking a number.
 - **#171, unverified lead:** each explosion has its own `pointLight` toggled through `visible`, and turrets have
   more. Three.js builds shader variants per light count, so a changing count could cause hitches that pool size
   won't fix. Check with a trace before acting on this.
