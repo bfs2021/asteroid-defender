@@ -13,6 +13,9 @@ const EXCLUDED_PATTERNS = [
   /\.test\./,
   /\.bench\./,
   /\/src\/telemetry\//,
+  // Snapshot readers run during render; recording them invalidates the telemetry
+  // snapshot and re-renders forever (see #185).
+  /\/src\/ecs\/spawnStats\./,
   /\/src\/vite-env\.d\.ts$/,
 ];
 
