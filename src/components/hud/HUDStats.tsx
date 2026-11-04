@@ -29,6 +29,14 @@ const STATE_BADGE: Record<string, { label: string; bg: string; border: string; c
   },
 };
 
+/** The "Base Integrity" readout: the percentage of maxHealth and whether it is critical.
+ * One source of truth for both the number and the bar: with a non-100 maxHealth the raw
+ * health and the ratio can disagree, and the raw value is not even a percentage. */
+export function healthReadout(health: number, maxHealth: number) {
+  const percent = maxHealth > 0 ? (health / maxHealth) * 100 : 0;
+  return { percent, label: `${Math.round(percent)}%`, isCritical: percent <= 30 };
+}
+
 /** Top-left HUD panel: title badge, health bar, destroyed/active stats. */
 function HUDStats() {
   const { asteroidsDestroyed, activeAsteroids, health, maxHealth, gameState } = useGameStore(
@@ -41,7 +49,11 @@ function HUDStats() {
     })),
   );
 
-  const healthPercent = maxHealth > 0 ? (health / maxHealth) * 100 : 0;
+  const {
+    percent: healthPercent,
+    label: healthLabel,
+    isCritical,
+  } = healthReadout(health, maxHealth);
   const stateBadge = STATE_BADGE[gameState] ?? STATE_BADGE.menu;
 
   return (
@@ -99,8 +111,8 @@ function HUDStats() {
         <div style={{ fontSize: "clamp(0.85rem, 1.8vw, 1.1rem)", marginBottom: "10px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
             <span style={{ color: "#d1d5db" }}>Base Integrity</span>
-            <span style={{ color: health > 30 ? "#4ade80" : "#ef4444", fontWeight: "bold" }}>
-              {health}%
+            <span style={{ color: isCritical ? "#ef4444" : "#4ade80", fontWeight: "bold" }}>
+              {healthLabel}
             </span>
           </div>
           <div
@@ -116,7 +128,7 @@ function HUDStats() {
               style={{
                 width: `${healthPercent}%`,
                 height: "100%",
-                background: health > 30 ? "#4ade80" : "#ef4444",
+                background: isCritical ? "#ef4444" : "#4ade80",
                 transition: "width 0.3s",
               }}
             />
